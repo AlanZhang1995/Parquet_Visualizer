@@ -45,18 +45,14 @@ if 'use_sample' not in st.session_state:
 if 'sample_data' not in st.session_state:
     st.session_state.sample_data = None
 
-def show_custom_table_with_images(df, image_columns):
+def show_custom_table_with_images(df, selected_image_col):
     """Display a custom table with inline image rendering"""
     
     # Get non-image columns
-    non_image_cols = [col for col in df.columns if col not in image_columns]
+    non_image_cols = [col for col in df.columns if col != selected_image_col]
     
     # Settings
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        thumbnail_size = st.selectbox("Image size", [50, 100, 150, 200], index=1)
-    with col2:
-        selected_image_col = st.selectbox("Image column to display", image_columns)
+    thumbnail_size = st.selectbox("Image size", [50, 100, 150, 200], index=1, key="preview_thumbnail_size")
     
     st.divider()
     
@@ -262,34 +258,25 @@ def show_image_gallery():
     
     st.header("Image Gallery")
     
-    # Check for image columns
-    image_columns = [col.name for col in st.session_state.file_metadata.schema if col.is_image_column]
+    # Get all columns (let user choose any column)
+    all_columns = [col.name for col in st.session_state.file_metadata.schema]
     
-    if not image_columns:
-        st.info("📋 No image columns detected in this file.")
-        st.markdown("""
-        Image columns are detected when:
-        - Column type is `binary` or `large_binary`
-        - Column name contains: 'image', 'img', 'picture', 'photo', or 'thumbnail'
-        """)
-        return
-    
-    st.success(f"🖼️ Found {len(image_columns)} image column(s): {', '.join(image_columns)}")
-    
-    # Column selector
+    # Column selector - let user choose which column contains images
     selected_column = st.selectbox(
-        "Select image column to display",
-        image_columns
+        "Select column to display as images",
+        all_columns,
+        help="Choose any column that contains image data (bytes or dict with 'bytes' key)",
+        key="gallery_column_selector"
     )
     
     # Gallery settings
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        images_per_page = st.selectbox("Images per page", [6, 12, 24, 48], index=1)
+        images_per_page = st.selectbox("Images per page", [6, 12, 24, 48], index=1, key="gallery_images_per_page")
     
     with col2:
-        columns_per_row = st.selectbox("Columns per row", [2, 3, 4, 6], index=1)
+        columns_per_row = st.selectbox("Columns per row", [2, 3, 4, 6], index=1, key="gallery_columns_per_row")
     
     # Load data
     try:
@@ -424,7 +411,7 @@ def show_data_view():
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col1:
-        page_size = st.selectbox("Rows per page", [50, 100, 200, 500], index=1)
+        page_size = st.selectbox("Rows per page", [50, 100, 200, 500], index=1, key="data_view_page_size")
     
     # Use sample data if sampling is active
     if st.session_state.use_sample:
@@ -457,7 +444,8 @@ def show_data_view():
     with col1:
         sort_column = st.selectbox(
             "Sort by",
-            ["None"] + [col.name for col in st.session_state.file_metadata.schema]
+            ["None"] + [col.name for col in st.session_state.file_metadata.schema],
+            key="data_view_sort_column"
         )
     with col2:
         sort_direction = st.radio("Direction", ["Ascending", "Descending"], horizontal=True)
@@ -505,37 +493,29 @@ def show_data_view():
                     sort_ascending=(sort_direction == "Ascending")
                 )
         
-        # Check for image columns
-        image_columns = [col.name for col in st.session_state.file_metadata.schema if col.is_image_column]
+        # Get all columns for user selection
+        all_columns = [col.name for col in st.session_state.file_metadata.schema]
         
         # Store original dataframe with bytes intact for image visualization
         df_original = df.copy()
         
-        # Create display version with text representation for image columns
-        if image_columns:
-            df_display = df.copy()
-            for col in image_columns:
-                if col in df_display.columns:
-                    df_display[col] = df_display[col].apply(
-                        lambda x: (
-                            f"<dict: {{{', '.join(x.keys())}}}>" if isinstance(x, dict) else
-                            f"<binary: {len(x)} bytes>" if isinstance(x, (bytes, bytearray)) else
-                            x
-                        )
-                    )
-        else:
-            df_display = df
+        # Create display version with text representation for binary/dict columns
+        df_display = df.copy()
+        for col in df_display.columns:
+            df_display[col] = df_display[col].apply(
+                lambda x: (
+                    f"<dict: {{{', '.join(x.keys())}}}>" if isinstance(x, dict) else
+                    f"<binary: {len(x)} bytes>" if isinstance(x, (bytes, bytearray)) else
+                    x
+                )
+            )
         
-        # Always show the table first
-        if image_columns:
-            # Add button to toggle image preview
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.info(f"🖼️ Image columns detected: {', '.join(image_columns)}")
-            with col2:
-                show_images = st.button("🖼️ Preview Images", use_container_width=True)
-        else:
-            show_images = False
+        # Always show the table first with option to preview images
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.info("💡 Select a column below to preview as images")
+        with col2:
+            show_images = st.button("🖼️ Preview Images", use_container_width=True)
         
         # Display the data table (with text representation for images)
         st.dataframe(
@@ -546,10 +526,20 @@ def show_data_view():
         )
         
         # Show image preview if button was clicked (using original data with bytes)
-        if image_columns and show_images:
+        if show_images:
             st.divider()
             st.subheader("Image Preview")
-            show_custom_table_with_images(df_original, image_columns)
+            
+            # Let user select which column to preview as images
+            selected_image_col = st.selectbox(
+                "Select column to display as images",
+                all_columns,
+                help="Choose any column that contains image data (bytes or dict with 'bytes' key)",
+                key="data_view_image_column"
+            )
+            
+            if selected_image_col:
+                show_custom_table_with_images(df_original, selected_image_col)
             
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
@@ -596,7 +586,8 @@ def show_statistics_view():
     # Column selector
     column_name = st.selectbox(
         "Select column",
-        [col.name for col in st.session_state.file_metadata.schema]
+        [col.name for col in st.session_state.file_metadata.schema],
+        key="stats_column_selector"
     )
     
     if column_name:

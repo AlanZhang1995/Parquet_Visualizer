@@ -2,6 +2,34 @@
 
 All notable changes to the Parquet Visualizer project.
 
+## [2.1.0] - 2026-01-28
+
+### Added
+- **Manual Column Selection**: Users can now manually select which column to display as images (Data View and Image Gallery)
+- **Universal Image Support**: Any column can be selected for image preview, not just auto-detected ones
+
+### Changed
+- **Browse Local File**: Now properly handles dictionary format images (same as Upload File)
+- **Image Column Detection**: Removed automatic detection in favor of user selection
+- **Column Display**: All binary and dictionary columns show text representation in table
+
+### Fixed
+- **Duplicate Element ID Error**: Added unique keys to all selectbox elements to prevent Streamlit duplicate ID errors
+
+### Improved
+- **Consistency**: Browse Local File and Upload File now work identically
+- **Flexibility**: Users have full control over which column to display as images
+- **Reliability**: No false positives from auto-detection
+
+### Technical
+- Updated `show_data_view()` to let users select image column
+- Updated `show_image_gallery()` to let users select image column
+- Updated `show_custom_table_with_images()` to accept single column
+- Added unique `key` parameters to 7 selectbox elements
+- All 28 tests passing with 90% coverage
+
+---
+
 ## [2.0.0] - 2026-01-28
 
 ### Added
